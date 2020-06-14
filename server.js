@@ -45,6 +45,7 @@ app.post("/spices/add", (req, res) => {
       res.send("success")
     } else {
       console.log("err>>>", err)
+      res.send(err)
     }
   })
 })

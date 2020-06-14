@@ -12,24 +12,50 @@ Insta.setKeys(API_KEY, AUTH_KEY)
 var app = express()
 app.use(bodyParser.json())
 
-var mysqlConnection = mysql.createConnection({
+const db_config = {
   host: "us-cdbr-east-05.cleardb.net",
   user: "b219605072f835",
   password: "42574139",
   database: "heroku_8443213941cb76c",
   multipleStatements: true
-})
+}
+//var mysqlConnection = mysql.createConnection(db_config)
 
-mysqlConnection.connect((err) => {
-  if (!err) {
-    console.log("Connected")
-  } else {
-    console.log("Connection Failed")
-  }
-})
+//mysqlConnection.connect((err) => {
+//  if (!err) {
+//    console.log("Connected")
+//  } else {
+//    console.log("Connection Failed")
+//  }
+//})
+
+var connection;
+
+function handleDisconnect() {
+  connection = mysql.createConnection(db_config) // Recreate the connection, since
+                                                  // the old one cannot be reused.
+
+  connection.connect(function(err) {              // The server is either down
+    if(err) {                                     // or restarting (takes a while sometimes).
+      console.log('error when connecting to db:', err);
+      setTimeout(handleDisconnect, 2000); // We introduce a delay before attempting to reconnect,
+    }                                     // to avoid a hot loop, and to allow our node script to
+  });                                     // process asynchronous requests in the meantime.
+                                          // If you're also serving http, display a 503 error.
+  connection.on('error', function(err) {
+    console.log('db error', err);
+    if(err.code === 'PROTOCOL_CONNECTION_LOST') { // Connection to the MySQL server is usually
+      handleDisconnect();                         // lost due to either server restart, or a
+    } else {                                      // connnection idle timeout (the wait_timeout
+      throw err;                                  // server variable configures this)
+    }
+  });
+}
+
+handleDisconnect()
 
 app.get("/", (req, res) => {
-  mysqlConnection.query("SELECT * from testspices", (err, rows, fields) => {
+  connection.query("SELECT * from testspices", (err, rows, fields) => {
     if (!err) {
       res.send(rows)
     } else {
@@ -40,7 +66,7 @@ app.get("/", (req, res) => {
 
 app.post("/spices/add", (req, res) => {
   const { spices, amount, spicesimage } = req.body
-  mysqlConnection.query(`INSERT INTO testspices(spice,amount,spiceimage) VALUES(?,?,?)`, [spices, amount, spicesimage], (err) => {
+  connection.query(`INSERT INTO testspices(spice,amount,spiceimage) VALUES(?,?,?)`, [spices, amount, spicesimage], (err) => {
     if (!err) {
       res.send("success")
     } else {
